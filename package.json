@@ -1,5 +1,5 @@
 {
-  "name": "prel",
+  "name": "preldb",
   "version": "0.1.0",
   "description": "a simple js rewrite of dbm",
   "main": "index.js",
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/anqurvanillapy/prel.git"
+    "url": "git+https://github.com/anqurvanillapy/preldb.git"
   },
   "keywords": [
     "db",
@@ -18,7 +18,7 @@
   "author": "AnqurVanillapy",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/anqurvanillapy/prel/issues"
+    "url": "https://github.com/anqurvanillapy/preldb/issues"
   },
-  "homepage": "https://github.com/anqurvanillapy/prel#readme"
+  "homepage": "https://github.com/anqurvanillapy/preldb#readme"
 }
