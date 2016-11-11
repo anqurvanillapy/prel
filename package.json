@@ -4,7 +4,10 @@
   "description": "a simple js rewrite of dbm",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "babel src/entry.js --presets babel-preset-latest --out-file index.js",
+    "clean": "rm -f index.js",
+    "release": "npm run bump && npm run build"
   },
   "repository": {
     "type": "git",
@@ -20,5 +23,9 @@
   "bugs": {
     "url": "https://github.com/anqurvanillapy/preldb/issues"
   },
-  "homepage": "https://github.com/anqurvanillapy/preldb#readme"
+  "homepage": "https://github.com/anqurvanillapy/preldb#readme",
+  "devDependencies": {
+    "babel-cli": "^6.18.0",
+    "babel-preset-latest": "^6.16.0"
+  }
 }
