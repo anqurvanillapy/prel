@@ -5,8 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "babel src/entry.js --out-file index.js",
-    "watch": "babel src/entry.js --watch --out-file index.js",
+    "build": "babel src/entry.js -o index.js",
+    "build-dev": "babel --no-babelrc --presets babel-preset-latest src/entry.js -o index.js",
+    "watch": "babel --no-babelrc --presets babel-preset-latest src/entry.js -o index.js --watch",
     "clean": "rm -f index.js",
     "release": "npm run bump && npm run build"
   },
