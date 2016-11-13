@@ -1,8 +1,11 @@
-var fs = require('fs')
+'use strict'
+
+import fs from 'fs'
 
 const BLOCKSIZE = 512
+const ENCODING = 'ascii'
 
-class DataBaseManager {
+class PrelDB {
   constructor (fbname, flag = 'c', mode) {
     this._mode = mode
 
@@ -11,7 +14,7 @@ class DataBaseManager {
     // that points to the data file
     this._dirfile = fbname + '.dir'
 
-    // The data file, aligned by _BLOCKSIZE
+    // The data file, aligned by BLOCKSIZE
     this._datfile = fbname + '.dat'
 
     // The backup file
@@ -22,21 +25,52 @@ class DataBaseManager {
 
     // Handle the creation
     this._create(flag)
-    // this._update()
+    this._update()
   }
 
   _create (flag) {
-    console.log(flag)
     if (flag === 'n') {
       [this._dirfile, this._datfile, this._bakfile].forEach(f => {
-        fs.unlink(f, _ => {})
+        fs.unlink(f, _ => { /* eat errors */ })
       })
     }
+
+    fs.readFile(this._datfile, ENCODING, (err, data) => {
+      if (err) {
+        fs.writeFile(this._datfile, ENCODING, '', err => {
+          if (err) throw err
+          fs.chmod(this._datfile, this._mode)
+        })
+      }
+    })
+  }
+
+  _update () {
+    this._index = {}
+
+    fs.readFile(this._dirfile, ENCODING, (err, data) => {
+      if (err) { /* eat errors */ }
+      /* read data line by line */
+    })
+  }
+
+  _commit () {
+
+  }
+
+  _verifyOpen () {
+    if (typeof this._index === 'undefined') {
+      throw new Error('PrelDB object has been already closed')
+    }
+  }
+
+  close () {
+    /* close the db */
   }
 }
 
 function open (file, flag = 'c', mode = 0o666) {
-  return new DataBaseManager(file, flag, mode)
+  return new PrelDB(file, flag, mode)
 }
 
 export { open }

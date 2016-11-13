@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "babel src/entry.js --presets babel-preset-latest --out-file index.js",
+    "build": "babel src/entry.js --out-file index.js",
+    "watch": "babel src/entry.js --watch --out-file index.js",
     "clean": "rm -f index.js",
     "release": "npm run bump && npm run build"
   },
@@ -26,6 +27,8 @@
   "homepage": "https://github.com/anqurvanillapy/preldb#readme",
   "devDependencies": {
     "babel-cli": "^6.18.0",
-    "babel-preset-latest": "^6.16.0"
+    "babel-preset-babili": "0.0.8",
+    "babel-preset-latest": "^6.16.0",
+    "mocha": "^3.1.2"
   }
 }
