@@ -24,10 +24,12 @@ class PrelDB {
     // The in-memory mapping that mirrors the directory file
     this._index = undefined // maps key to a [pos, siz] pair
 
+    // Randomly generated number of remaining operands to commit
+    this._commitCount = 0
+
     // Handle the creation
     this._create(flag)
     this._update()
-    this._commit()
   }
 
   _create (flag) {
@@ -56,7 +58,7 @@ class PrelDB {
       input: rs
     })
 
-    rl.on('line', (line) => {
+    rl.on('line', line => {
       // Destructure a nested Array from a line
       var [key, pair] = JSON.parse('[' + line.trim() + ']')
       this._index[key] = pair // pos and siz pair
@@ -69,8 +71,10 @@ class PrelDB {
   _commit () {
     if (typeof this._index === 'undefined') return // it's closed
 
-    fs.unlink(this._bakfile, _ => { /* eat errors */ })
-    fs.rename(this._dirfile, this._bakfile, _ => { /* safe backup */ })
+    fs.unlink(this._bakfile, err => { 
+      if (err) { /* eat errors */}
+      fs.rename(this._dirfile, this._bakfile, _ => { /* safe backup */ })      
+    })
 
     fs.open(this._dirfile, 'w', err => {
       if (err) throw err
@@ -86,6 +90,10 @@ class PrelDB {
     })
   }
 
+  _commitHelper () {
+    // TODO: help with db auto-committing, based on random number
+  }
+
   sync () { this._commit() }
 
   _verifyOpen () {
@@ -99,6 +107,34 @@ class PrelDB {
 
     // Destructuring can raise TypeError if no matches
     var [pos, siz] = this._index[key]
+
+    fs.open(this._datfile, 'r', (err, fd) => {
+      if (err) throw err
+
+      var buf = new Buffer(100)
+      fs.read(fd, buf, 0, siz, pos, (err, numBytes) => {
+        if (err) throw err
+        return buf.toString(ENCODING, 0, numBytes)
+      })
+    })
+  }
+
+  // Append val to data file, starting at a BLOCKSIZE-aligned offset. The data
+  // file is first padded with NUL bytes (if needed) to get to an aligned
+  // offset. Return pair
+  //    "[pos, val.length]"
+  _addval (val) {
+    fs.open(this._datfile, 'r+', (err, fd) => {
+      if (err) throw err
+
+      fs.stat(this._datfile, (err, stats) => {
+        if (err) throw err
+
+        var pos = stats['size']
+        var npos = Math.floor((pos + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE
+        // TODO: write val to data file
+      })
+    })
   }
 
   close () {
