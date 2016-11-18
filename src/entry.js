@@ -29,13 +29,16 @@ class PrelDB {
 
     // Handle the creation
     this._create(flag)
-    this._update()
+    // this._update()
+    // this._commit()
+    this._addval('foo')
+    this._addval('bar')
   }
 
   _create (flag) {
     if (flag === 'n') {
       [this._dirfile, this._datfile, this._bakfile].forEach(f => {
-        fs.unlink(f, _ => { /* eat errors */ })
+        fs.unlinkSync(f)
       })
     }
 
@@ -48,15 +51,13 @@ class PrelDB {
   // Read the directory to the in-memory index object
   _update () {
     this._index = {}
-    var rs = fs.createReadStream(this._dirfile, {encode: ENCODING})
+    var rs = fs.createReadStream(this._dirfile, {defaultEncoding: ENCODING})
 
     rs.on('error', _ => {
       return // eat errors
     })
 
-    const rl = readline.createInterface({
-      input: rs
-    })
+    const rl = readline.createInterface({ input: rs })
 
     rl.on('line', line => {
       // Destructure a nested Array from a line
@@ -71,22 +72,23 @@ class PrelDB {
   _commit () {
     if (typeof this._index === 'undefined') return // it's closed
 
-    fs.unlink(this._bakfile, err => { 
-      if (err) { /* eat errors */}
-      fs.rename(this._dirfile, this._bakfile, _ => { /* safe backup */ })      
+    fs.unlink(this._bakfile, err => {
+      if (err) { /* eat errors */ }
+      fs.rename(this._dirfile, this._bakfile, _ => { /* safe backup */ })
     })
 
-    fs.open(this._dirfile, 'w', err => {
+    fs.open(this._dirfile, 'w', (err, fd) => {
       if (err) throw err
 
-      fs.chmod(this._dirfile, this._mode)
       var ws = fs.createWriteStream(this._dirfile, {defaultEncoding: ENCODING})
 
       Object.keys(this._index).forEach(k => {
-        ws.write(k.toString() + ',[' + this._index[k].toString() + ']')
+        ws.write(k.toString() + ', ' + JSON.stringify(this._index[k]))
       })
 
       ws.end('\n')
+      fs.chmod(this._dirfile, this._mode)
+      fs.close(fd)
     })
   }
 
@@ -111,11 +113,13 @@ class PrelDB {
     fs.open(this._datfile, 'r', (err, fd) => {
       if (err) throw err
 
-      var buf = new Buffer(100)
+      var buf = Buffer.alloc(BLOCKSIZE)
       fs.read(fd, buf, 0, siz, pos, (err, numBytes) => {
         if (err) throw err
         return buf.toString(ENCODING, 0, numBytes)
       })
+
+      fs.close(fd)
     })
   }
 
@@ -124,16 +128,19 @@ class PrelDB {
   // offset. Return pair
   //    "[pos, val.length]"
   _addval (val) {
-    fs.open(this._datfile, 'r+', (err, fd) => {
+    fs.stat(this._datfile, (err, stats) => {
       if (err) throw err
 
-      fs.stat(this._datfile, (err, stats) => {
-        if (err) throw err
-
-        var pos = stats['size']
-        var npos = Math.floor((pos + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE
-        // TODO: write val to data file
+      var pos = stats.size
+      var npos = Math.floor((pos + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE
+      console.log(pos, npos)
+      var ws = fs.createWriteStream(this._datfile, {
+        flag: 'a',
+        defaultEncoding: ENCODING
       })
+      // fs.appendFileSync(this._datfile, val, ENCODING)
+      ws.write(val)
+      ws.end()
     })
   }
 
