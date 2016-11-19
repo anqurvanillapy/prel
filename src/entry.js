@@ -22,17 +22,15 @@ class PrelDB {
     this._bakfile = fbname + '.bak'
 
     // The in-memory mapping that mirrors the directory file
-    this._index = undefined // maps key to a [pos, siz] pair
+    this._index = null // maps key to a [pos, siz] pair
 
     // Randomly generated number of remaining operands to commit
     this._commitCount = 0
 
     // Handle the creation
     this._create(flag)
-    // this._update()
-    // this._commit()
-    this._addval('foo')
-    this._addval('bar')
+    this._update()
+    this._commit()
   }
 
   _create (flag) {
@@ -42,9 +40,9 @@ class PrelDB {
       })
     }
 
-    fs.writeFile(this._datfile, '', err => {
+    fs.open(this._datfile, 'a', err => {
       if (err) { /* eat errors */ }
-      fs.chmod(this._datfile, this._mode)
+      fs.chmodSync(this._datfile, this._mode)
     })
   }
 
@@ -128,19 +126,11 @@ class PrelDB {
   // offset. Return pair
   //    "[pos, val.length]"
   _addval (val) {
-    fs.stat(this._datfile, (err, stats) => {
-      if (err) throw err
+    var pos = fs.statSync(this._datfile)['size']
+    var npos = Math.floor((pos + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE
 
-      var pos = stats.size
-      var npos = Math.floor((pos + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE
-      console.log(pos, npos)
-      var ws = fs.createWriteStream(this._datfile, {
-        flag: 'a',
-        defaultEncoding: ENCODING
-      })
-      // fs.appendFileSync(this._datfile, val, ENCODING)
-      ws.write(val)
-      ws.end()
+    ;[Array(npos - pos + 1).join('\0'), val].forEach(dat => {
+      fs.appendFileSync(this._datfile, dat, ENCODING)
     })
   }
 
