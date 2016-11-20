@@ -22,7 +22,7 @@ class PrelDB {
     this._bakfile = fbname + '.bak'
 
     // The in-memory mapping that mirrors the directory file
-    this._index = null // maps key to a [pos, siz] pair
+    this._index = undefined // maps key to a [pos, siz] pair
 
     // Randomly generated number of remaining operands to commit
     this._commitCount = 0
@@ -30,7 +30,6 @@ class PrelDB {
     // Handle the creation
     this._create(flag)
     this._update()
-    this._commit()
   }
 
   _create (flag) {
@@ -59,7 +58,7 @@ class PrelDB {
 
     rl.on('line', line => {
       // Destructure a nested Array from a line
-      var [key, pair] = JSON.parse('[' + line.trim() + ']')
+      var [key, pair] = JSON.parse(`[${line.trim()}]`)
       this._index[key] = pair // pos and siz pair
     })
   }
@@ -81,7 +80,7 @@ class PrelDB {
       var ws = fs.createWriteStream(this._dirfile, {defaultEncoding: ENCODING})
 
       Object.keys(this._index).forEach(k => {
-        ws.write(k.toString() + ', ' + JSON.stringify(this._index[k]))
+        ws.write(`'${k.toString()}', ${JSON.stringify(this._index[k])}\n`)
       })
 
       ws.end('\n')
@@ -129,9 +128,78 @@ class PrelDB {
     var pos = fs.statSync(this._datfile)['size']
     var npos = Math.floor((pos + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE
 
+    // NOTE: Array(5).join('\0') returns 4 null bytes
     ;[Array(npos - pos + 1).join('\0'), val].forEach(dat => {
       fs.appendFileSync(this._datfile, dat, ENCODING)
     })
+
+    return [pos, val.toString().length]
+  }
+
+  // Write val to the data file, starting at offset pos. The caller is
+  // responsible for ensuring an enough room starting at pos to hold val,
+  // without overwriting some other value. Return pair [pos, val.length).
+  _setval (pos, val) {
+    fs.open(this._datfile, 'r+', (err, fd) => {
+      if (err) throw err
+
+      fs.writeSync(fd, val, pos, ENCODING)
+      fs.close(fd)
+    })
+
+    return [pos, val.toString().length]
+  }
+
+  // key is a new key whose associated value starts in the data file at offset
+  // pos with length siz. Add an index record to the in-memory index object, and
+  // append one to the directory file.
+  _addkey (key, pair) {
+    this._index[key] = pair
+    fs.open(this._dirfile, 'a', (err, fd) => {
+      if (err) throw err
+
+      fs.chmodSync(this._dirfile, this._mode)
+      fs.writeSync(fd, `${key}, ${JSON.stringify(pair)}\n`)
+    })
+  }
+
+  set (key, val) {
+    this._verifyOpen()
+
+    if (!(key in this._index)) {
+      this._addkey(key, this._addval(val))
+    } else {
+      var [pos, siz] = this._index[key]
+      var [oldblocks, newblocks] = [siz, val.toString().length].map(len => {
+        return Math.floor((len + BLOCKSIZE - 1) / BLOCKSIZE)
+      })
+
+      if (newblocks <= oldblocks) {
+        this._index[key] = this._setval(pos, val)
+      } else {
+        // The new value doesn't fit in the padded space used by the old value.
+        // And the blocks used by the old value are forever lost.
+        this._index[key] = this._addval(val)
+      }
+    }
+
+    this._commitHelper()
+  }
+
+  delete (key) {
+    this._verifyOpen()
+    delete this._index[key]
+    this._commitHelper()
+  }
+
+  keys () {
+    this._verifyOpen()
+    return Object.keys(this._index)
+  }
+
+  entries () {
+    this._verifyOpen()
+    return Object.keys(this._index).map(el => { return [el, this._index[el]] })
   }
 
   close () {
