@@ -1,7 +1,6 @@
 'use strict'
 
 import fs from 'fs'
-import readline from 'readline'
 
 const BLOCKSIZE = 512
 const ENCODING = 'ascii'
@@ -39,28 +38,23 @@ class PrelDB {
       })
     }
 
-    fs.open(this._datfile, 'a', err => {
-      if (err) { /* eat errors */ }
-      fs.chmodSync(this._datfile, this._mode)
-    })
+    var fd = fs.openSync(this._datfile, 'a+')
+    fs.chmodSync(this._datfile, this._mode)
+    fs.closeSync(fd)
   }
 
   // Read the directory to the in-memory index object
   _update () {
     this._index = {}
-    var rs = fs.createReadStream(this._dirfile, {defaultEncoding: ENCODING})
 
-    rs.on('error', _ => {
-      return // eat errors
-    })
-
-    const rl = readline.createInterface({ input: rs })
-
-    rl.on('line', line => {
-      // Destructure a nested Array from a line
-      var [key, pair] = JSON.parse(`[${line.trim()}]`)
-      this._index[key] = pair // pos and siz pair
-    })
+    var fd = fs.openSync(this._dirfile, 'a+')
+    try {
+      this._index = JSON.parse(fs.readFileSync(fd, ENCODING))
+    } catch (e) {
+      // eat errors
+    } finally {
+      fs.closeSync(fd)
+    }
   }
 
   // Write the index object to the directory file. The original directory file
@@ -69,27 +63,18 @@ class PrelDB {
   _commit () {
     if (typeof this._index === 'undefined') return // it's closed
 
-    fs.unlink(this._bakfile, err => {
-      if (err) { /* eat errors */ }
-      fs.rename(this._dirfile, this._bakfile, _ => { /* safe backup */ })
-    })
+    try {
+      fs.unlinkSync(this._bakfile)
+      fs.renameSync(this._dirfile, this._bakfile)
+    } catch (e) { /* eat errors */ }
 
-    fs.open(this._dirfile, 'w', (err, fd) => {
-      if (err) throw err
-
-      var ws = fs.createWriteStream(this._dirfile, {defaultEncoding: ENCODING})
-
-      Object.keys(this._index).forEach(k => {
-        ws.write(`'${k.toString()}', ${JSON.stringify(this._index[k])}\n`)
-      })
-
-      ws.end('\n')
-      fs.chmod(this._dirfile, this._mode)
-      fs.close(fd)
-    })
+    var fd = fs.openSync(this._dirfile, 'w')
+    fs.writeSync(fd, `${JSON.stringify(this._index, null, '\t')}\n`, ENCODING)
+    fs.chmodSync(this._dirfile, this._mode)
+    fs.closeSync(fd)
   }
 
-  _commitHelper () {
+  _autoCommit () {
     // TODO: help with db auto-committing, based on random number
   }
 
@@ -103,21 +88,21 @@ class PrelDB {
 
   get (key) {
     this._verifyOpen()
+    var ret = null
 
-    // Destructuring can raise TypeError if no matches
-    var [pos, siz] = this._index[key]
-
-    fs.open(this._datfile, 'r', (err, fd) => {
-      if (err) throw err
-
+    try {
+      // Destructuring can raise TypeError if no matches
+      var [pos, siz] = this._index[key]
+      var fd = fs.openSync(this._datfile, 'r')
       var buf = Buffer.alloc(BLOCKSIZE)
-      fs.read(fd, buf, 0, siz, pos, (err, numBytes) => {
-        if (err) throw err
-        return buf.toString(ENCODING, 0, numBytes)
-      })
+      var bytesRead = fs.readSync(fd, buf, 0, siz, pos)
+      ret = buf.toString(ENCODING, 0, bytesRead)
+      fs.closeSync(fd)
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e
+    }
 
-      fs.close(fd)
-    })
+    return ret
   }
 
   // Append val to data file, starting at a BLOCKSIZE-aligned offset. The data
@@ -133,6 +118,7 @@ class PrelDB {
       fs.appendFileSync(this._datfile, dat, ENCODING)
     })
 
+    pos = npos
     return [pos, val.toString().length]
   }
 
@@ -140,13 +126,9 @@ class PrelDB {
   // responsible for ensuring an enough room starting at pos to hold val,
   // without overwriting some other value. Return pair [pos, val.length).
   _setval (pos, val) {
-    fs.open(this._datfile, 'r+', (err, fd) => {
-      if (err) throw err
-
-      fs.writeSync(fd, val, pos, ENCODING)
-      fs.close(fd)
-    })
-
+    var fd = fs.openSync(this._datfile, 'r+')
+    fs.writeSync(fd, val, pos, ENCODING)
+    fs.closeSync(fd)
     return [pos, val.toString().length]
   }
 
@@ -155,12 +137,9 @@ class PrelDB {
   // append one to the directory file.
   _addkey (key, pair) {
     this._index[key] = pair
-    fs.open(this._dirfile, 'a', (err, fd) => {
-      if (err) throw err
-
-      fs.chmodSync(this._dirfile, this._mode)
-      fs.writeSync(fd, `${key}, ${JSON.stringify(pair)}\n`)
-    })
+    var fd = fs.openSync(this._dirfile, 'w')
+    fs.chmodSync(this._dirfile, this._mode)
+    fs.writeSync(fd, `${JSON.stringify(this._index, null, '\t')}\n`, ENCODING)
   }
 
   set (key, val) {
@@ -183,13 +162,13 @@ class PrelDB {
       }
     }
 
-    this._commitHelper()
+    this._autoCommit()
   }
 
   delete (key) {
     this._verifyOpen()
     delete this._index[key]
-    this._commitHelper()
+    this._autoCommit()
   }
 
   keys () {
@@ -200,6 +179,11 @@ class PrelDB {
   entries () {
     this._verifyOpen()
     return Object.keys(this._index).map(el => { return [el, this._index[el]] })
+  }
+
+  contains (key) {
+    this._verifyOpen()
+    return key in this._index
   }
 
   close () {
