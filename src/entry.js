@@ -9,22 +9,24 @@ class PrelDB {
   constructor (fbname, flag = 'c', mode) {
     this._mode = mode
 
-    // The directory file, whose each line looks like
-    //    "key, [pos, siz]"
-    // that points to the data file
+    // The directory file, storing a JSON of the keys and the pairs of the file
+    // offest and its value size.
     this._dirfile = fbname + '.dir'
 
-    // The data file, aligned by BLOCKSIZE
+    // The data file, aligned by BLOCKSIZE.
     this._datfile = fbname + '.dat'
 
     // The backup file
     this._bakfile = fbname + '.bak'
 
-    // The in-memory mapping that mirrors the directory file
+    // The in-memory mapping that mirrors the directory file.
     this._index = undefined // maps key to a [pos, siz] pair
 
     // Randomly generated number of remaining operands to commit
     this._commitCount = 0
+
+    // _commitCount randomly picked from [0, _autoCommitEndpoint]
+    this._autoCommitEndpoint = 5
 
     // Handle the creation
     this._create(flag)
@@ -34,7 +36,9 @@ class PrelDB {
   _create (flag) {
     if (flag === 'n') {
       [this._dirfile, this._datfile, this._bakfile].forEach(f => {
-        fs.unlinkSync(f)
+        try {
+          fs.unlinkSync(f)
+        } catch (e) { /* eat errors */ }
       })
     }
 
@@ -65,20 +69,31 @@ class PrelDB {
 
     try {
       fs.unlinkSync(this._bakfile)
-      fs.renameSync(this._dirfile, this._bakfile)
     } catch (e) { /* eat errors */ }
 
+    fs.renameSync(this._dirfile, this._bakfile)
     var fd = fs.openSync(this._dirfile, 'w')
     fs.writeSync(fd, `${JSON.stringify(this._index, null, '\t')}\n`, ENCODING)
     fs.chmodSync(this._dirfile, this._mode)
     fs.closeSync(fd)
   }
 
+  sync () { this._commit() }
+
   _autoCommit () {
-    // TODO: help with db auto-committing, based on random number
+    let a = this._autoCommitEndpoint
+
+    if (this._commitCount === 0) {
+      this._commitCount = Math.floor(Math.random() * (a + 1))
+      this._commit()
+    } else {
+      this._commitCount--
+    }
   }
 
-  sync () { this._commit() }
+  set setAutoCommitEndpoint (val) {
+    this._autoCommitEndpoint = val
+  }
 
   _verifyOpen () {
     if (typeof this._index === 'undefined') {
@@ -186,8 +201,13 @@ class PrelDB {
     return key in this._index
   }
 
+  get length () {
+    return Object.keys(this._index).length
+  }
+
   close () {
-    // close the db
+    this._commit()
+    this._index = this._dirfile = this._datfile = this._bakfile = undefined
   }
 }
 
