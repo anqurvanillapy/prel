@@ -92,6 +92,7 @@ class PrelDB {
   }
 
   set setAutoCommitEndpoint (val) {
+    if (val < 1) throw new TypeError('Integer larger than 0 required')
     this._autoCommitEndpoint = val
   }
 
