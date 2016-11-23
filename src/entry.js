@@ -5,7 +5,7 @@ import fs from 'fs'
 const BLOCKSIZE = 512
 const ENCODING = 'ascii'
 
-class PrelDB {
+class _PrelDB {
   constructor (fbname, flag = 'c', mode) {
     this._mode = mode
 
@@ -209,7 +209,7 @@ class PrelDB {
 
 function open (file, flag = 'c', mode = 0o666) {
   // FIXME: Use process.umask() to check Node's mode
-  return new PrelDB(file, flag, mode)
+  return new _PrelDB(file, flag, mode)
 }
 
 export { open }

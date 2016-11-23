@@ -39,14 +39,16 @@ db.set('baz', 'qux')
 API
 ---
 
-### `open(file, flag = 'c', mode = 0o666)`
+### Method: `open(file, flag = 'c', mode = 0o666)`
 
 Opens and returns an object of `PrelDB`, by giving a flag and Unix file mode.
 
 - flags: `c` for creation (based on an existing one), `n` for overwriting an old
 one (if any) and setting up a new store.
 
-### `PrelDB`
+### Private Object: `PrelDB`
+
+**Note:** It could only be returned by invoking `open()`, since it's private.
 
 #### `PrelDB.set(key, value)`
 
