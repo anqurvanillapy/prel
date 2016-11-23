@@ -32,6 +32,8 @@ console.log(db.contains('foo'))
 db.sync() // manually commit some changes
 
 db.close()
+db.set('baz', 'qux')
+//=> Error: PrelDB object has been already closed
 ```
 
 API
@@ -70,7 +72,7 @@ A random number between `[0, value]` will be generated for counting the changes.
 And if the number of changes reaches it, the database calls `PrelDB.sync()` to
 back up the data, re-generating a random number for the next count.
 
-`value` is `5` by default and should be larger than `0`.
+`value` is 5 by default and should be larger than 0.
 
 #### `PrelDB.keys()`
 

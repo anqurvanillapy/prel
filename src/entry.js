@@ -16,16 +16,16 @@ class PrelDB {
     // The data file, aligned by BLOCKSIZE.
     this._datfile = fbname + '.dat'
 
-    // The backup file
+    // The backup file.
     this._bakfile = fbname + '.bak'
 
     // The in-memory mapping that mirrors the directory file.
     this._index = undefined // maps key to a [pos, siz] pair
 
-    // Randomly generated number of remaining operands to commit
+    // Randomly generated number of remaining operands to commit.
     this._commitCount = 0
 
-    // _commitCount randomly picked from [0, _autoCommitEndpoint]
+    // _commitCount randomly picked from [0, _autoCommitEndpoint].
     this._autoCommitEndpoint = 5
 
     // Handle the creation
@@ -36,9 +36,7 @@ class PrelDB {
   _create (flag) {
     if (flag === 'n') {
       [this._dirfile, this._datfile, this._bakfile].forEach(f => {
-        try {
-          fs.unlinkSync(f)
-        } catch (e) { /* eat errors */ }
+        try { fs.unlinkSync(f) } catch (e) { /* eat errors */ }
       })
     }
 
@@ -47,10 +45,9 @@ class PrelDB {
     fs.closeSync(fd)
   }
 
-  // Read the directory to the in-memory index object
+  // Read the directory to the in-memory index object.
   _update () {
     this._index = {}
-
     var fd = fs.openSync(this._dirfile, 'a+')
     try {
       this._index = JSON.parse(fs.readFileSync(fd, ENCODING))
@@ -67,11 +64,9 @@ class PrelDB {
   _commit () {
     if (typeof this._index === 'undefined') return // it's closed
 
-    try {
-      fs.unlinkSync(this._bakfile)
-    } catch (e) { /* eat errors */ }
-
+    try { fs.unlinkSync(this._bakfile) } catch (e) { /* eat errors */ }
     fs.renameSync(this._dirfile, this._bakfile)
+
     var fd = fs.openSync(this._dirfile, 'w')
     fs.writeSync(fd, `${JSON.stringify(this._index, null, '\t')}\n`, ENCODING)
     fs.chmodSync(this._dirfile, this._mode)
@@ -104,18 +99,19 @@ class PrelDB {
 
   get (key) {
     this._verifyOpen()
+    var fd = fs.openSync(this._datfile, 'r')
     var ret = null
 
     try {
-      // Destructuring can raise TypeError if no matches
+      // Destructuring can raise TypeError if no matches.
       var [pos, siz] = this._index[key]
-      var fd = fs.openSync(this._datfile, 'r')
       var buf = Buffer.alloc(BLOCKSIZE)
       var bytesRead = fs.readSync(fd, buf, 0, siz, pos)
       ret = buf.toString(ENCODING, 0, bytesRead)
-      fs.closeSync(fd)
     } catch (e) {
       if (!(e instanceof TypeError)) throw e
+    } finally {
+      fs.closeSync(fd)
     }
 
     return ret
@@ -123,13 +119,12 @@ class PrelDB {
 
   // Append val to data file, starting at a BLOCKSIZE-aligned offset. The data
   // file is first padded with NUL bytes (if needed) to get to an aligned
-  // offset. Return pair
-  //    "[pos, val.length]"
+  // offset. Return pair [pos, val.length]
   _addval (val) {
     var pos = fs.statSync(this._datfile)['size']
     var npos = Math.floor((pos + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE
 
-    // NOTE: Array(5).join('\0') returns 4 null bytes
+    // NOTE: Array(5).join('\0') returns 4 null bytes.
     ;[Array(npos - pos + 1).join('\0'), val].forEach(dat => {
       fs.appendFileSync(this._datfile, dat, ENCODING)
     })
@@ -213,6 +208,7 @@ class PrelDB {
 }
 
 function open (file, flag = 'c', mode = 0o666) {
+  // FIXME: Use process.umask() to check Node's mode
   return new PrelDB(file, flag, mode)
 }
 
